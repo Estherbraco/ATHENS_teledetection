@@ -19,10 +19,10 @@ def digital_numbers_to_reflectance(raster: np.ndarray):
 def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
-    seuil: float = 0 
+    seuil: float = 0.1 
     ):
     """Cloud mask.
-    
+    print(seuil)
     Args:
         rasters: dictionary with keys B01, ..., B12 mapping to rasterio.io.DatasetReader datasets
         preprocess: optional argument, e.g. to convert Digital Numbers in reflectance
@@ -59,4 +59,31 @@ def apply_rgb_compo(
         render: if True, return an uint8 array stretched for display;
             if False, return the raw composition.
     """
-    raise NotImplementedError
+    bands = ("B02", "B03", "B04")
+    values = []
+
+    for band in bands:
+        if band not in rasters:
+            raise KeyError(f"Band {band} is required to create the RGB composition")
+        values.append(np.asarray(preprocess(rasters[band].read(1))))
+
+    shape = values[0].shape
+    if any(value.shape != shape for value in values):
+        raise ValueError("All raster bands must have the same shape")
+
+    composition = np.stack(values, axis=0)
+
+    if mask is not None:
+        mask = np.asarray(mask, dtype=bool)
+        if mask.shape != shape:
+            raise ValueError("The mask must have the same shape as the raster bands")
+
+    if render:
+        rendered, _, _ = rgb_render(
+            composition,
+            bands=[2, 1, 0],
+            mask=mask,
+        )
+        return rendered
+
+    return composition
