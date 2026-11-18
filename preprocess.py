@@ -21,42 +21,29 @@ def apply_cloud_mask(
     preprocess: Callable = lambda x: x, 
     seuil: float = 0 
     ):
-
     """Cloud mask.
     
     Args:
         rasters: dictionary with keys B01, ..., B12 mapping to rasterio.io.DatasetReader datasets
         preprocess: optional argument, e.g. to convert Digital Numbers in reflectance
+        seuil: reflectance threshold used to identify bright pixels
+
+    Returns:
+        A boolean array where True indicates a cloud pixel.
     """
-    bands: Dict[str, np.ndarray] = {
-        name: preprocess(ds.read(1)).astype(np.float32)
-        for name, ds in rasters.items()
-    }
+    bands = ("B02", "B03", "B04", "B11")
+    values = []
 
-    b02 = bands["B02"]  # Bleu
-    b03 = bands["B03"]  # Vert
-    b04 = bands["B04"]  # Rouge
-    b11 = bands["B11"]  # SWIR 1
+    for band in bands:
+        if band not in rasters:
+            raise KeyError(f"Band {band} is required to create the cloud mask")
+        values.append(np.asarray(preprocess(rasters[band].read(1))))
 
-    # 1. Forte réflectance dans le visible
-    visible_brightness = (b02 + b03 + b04) / 3.0
+    shape = values[0].shape
+    if any(value.shape != shape for value in values):
+        raise ValueError("All raster bands must have the same shape")
 
-    # 2. Distinction nuages / neige : les nuages restent réfléchissants dans le SWIR (B11),
-    # alors que la neige absorbe fortement dans le SWIR (NDSI élevé).
-    ndsi = (b03 - b11) / (b03 + b11 + 1e-8)
-
-    cloud_mask = (
-        (visible_brightness > seuil)
-        & (b11 > 0.5 * seuil)
-        & (ndsi < 0.4)
-    )
-
-    # Application du masque sur l'ensemble des bandes
-    masked_rasters: Dict[str, np.ndarray] = {
-        name: np.where(cloud_mask, np.nan, arr)
-        for name, arr in bands.items()
-    }
-    return cloud_mask
+    return np.logical_and.reduce([value > seuil for value in values])
 
 def apply_rgb_compo(
     rasters: Dict[str, rasterio.io.DatasetReader], 

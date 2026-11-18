@@ -52,3 +52,4 @@ def apply_CRswir(raster_dst: Dict, preprocess: Callable = lambda x: x):
     rho_cont = rho_swir1 + (lamb_swir1 - lamb_nir2)*(rho_swir2 - rho_nir2)/(lamb_swir2 - lamb_nir2)
 
     return rho_swir1/rho_cont
+
