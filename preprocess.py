@@ -19,8 +19,7 @@ def digital_numbers_to_reflectance(raster: np.ndarray):
 def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
-    seuil: float = 0.1,
-    seuil_ombre: float = 0.05,
+    seuil: float = 0.7,
     seuil_vegetation: float = 0.2,
     eps: float = 1e-4,
     ):
@@ -30,7 +29,6 @@ def apply_cloud_mask(
         rasters: dictionary with keys B01, ..., B12 mapping to rasterio.io.DatasetReader datasets
         preprocess: optional argument, e.g. to convert Digital Numbers in reflectance
         seuil: reflectance threshold used to identify bright pixels
-        seuil_ombre: reflectance threshold used to identify dark/shadow pixels
         seuil_vegetation: minimum NDVI considered vegetation
         eps: small value added to the NDVI denominator
 
@@ -59,14 +57,7 @@ def apply_cloud_mask(
         b11 > seuil,
     ])
 
-    # A shadow is approximated by low reflectance in the visible bands.
-    shadow_mask = np.logical_and.reduce([
-        b02 < seuil_ombre,
-        b03 < seuil_ombre,
-        b04 < seuil_ombre,
-    ])
-
-    mask = cloud_mask | shadow_mask
+    mask = cloud_mask 
 
     if "B08" in rasters:
         b08 = np.asarray(preprocess(rasters["B08"].read(1)))
