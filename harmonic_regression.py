@@ -27,7 +27,7 @@ def fit_harmonic_model(
     """
     y=ts_values[~ts_masks]
     t=ts_days[~ts_masks]
-    X=compute_harmonic_terms(ts_days, T)
+    X=compute_harmonic_terms(t, T)
     coeff, *_ = np.linalg.lstsq(X, y, rcond=None)
     residuals = y - X @ coeff
     df =X.shape[0] - X.shape[1]
@@ -109,6 +109,8 @@ def compute_harmonic_terms(DateAsNumber: int, T: float = 365.25):
     Returns:
         Array of shape (5,) containing harmonic terms.
     """
-    return np.array([1, np.cos(2 * np.pi * DateAsNumber / T), np.sin(2 * np.pi * DateAsNumber / T),
-                     np.cos(4 * np.pi * DateAsNumber / T), np.sin(4 * np.pi * DateAsNumber / T)])
+    d = np.asarray(DateAsNumber, dtype=float)
+    w = 2 * np.pi * d / T
+    return np.stack([np.ones_like(d), np.cos(w), np.sin(w),
+                     np.cos(2 * w), np.sin(2 * w)], axis=-1)
     raise NotImplementedError
