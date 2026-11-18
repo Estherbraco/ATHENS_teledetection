@@ -20,12 +20,14 @@ def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
     ):
+
     """Cloud mask.
     
     Args:
         rasters: dictionary with keys B01, ..., B12 mapping to rasterio.io.DatasetReader datasets
         preprocess: optional argument, e.g. to convert Digital Numbers in reflectance
     """
+    
     raise NotImplementedError
 
 
