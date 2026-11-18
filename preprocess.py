@@ -19,6 +19,7 @@ def digital_numbers_to_reflectance(raster: np.ndarray):
 def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
+    seuil: float = 0 
     ):
 
     """Cloud mask.
@@ -27,9 +28,35 @@ def apply_cloud_mask(
         rasters: dictionary with keys B01, ..., B12 mapping to rasterio.io.DatasetReader datasets
         preprocess: optional argument, e.g. to convert Digital Numbers in reflectance
     """
-    
-    raise NotImplementedError
+    bands: Dict[str, np.ndarray] = {
+        name: preprocess(ds.read(1)).astype(np.float32)
+        for name, ds in rasters.items()
+    }
 
+    b02 = bands["B02"]  # Bleu
+    b03 = bands["B03"]  # Vert
+    b04 = bands["B04"]  # Rouge
+    b11 = bands["B11"]  # SWIR 1
+
+    # 1. Forte réflectance dans le visible
+    visible_brightness = (b02 + b03 + b04) / 3.0
+
+    # 2. Distinction nuages / neige : les nuages restent réfléchissants dans le SWIR (B11),
+    # alors que la neige absorbe fortement dans le SWIR (NDSI élevé).
+    ndsi = (b03 - b11) / (b03 + b11 + 1e-8)
+
+    cloud_mask = (
+        (visible_brightness > seuil)
+        & (b11 > 0.5 * seuil)
+        & (ndsi < 0.4)
+    )
+
+    # Application du masque sur l'ensemble des bandes
+    masked_rasters: Dict[str, np.ndarray] = {
+        name: np.where(cloud_mask, np.nan, arr)
+        for name, arr in bands.items()
+    }
+    return cloud_mask
 
 def apply_rgb_compo(
     rasters: Dict[str, rasterio.io.DatasetReader], 
