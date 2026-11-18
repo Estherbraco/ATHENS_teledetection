@@ -6,7 +6,7 @@ import rasterio
 import matplotlib.pyplot as plt
 
 from download_from_cdse import query_id
-
+from spectral_index import apply_ndvi
 
 if __name__ == "__main__":
     with open('cdse_query.yaml', 'r') as file:
