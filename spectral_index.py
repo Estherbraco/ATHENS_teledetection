@@ -41,12 +41,13 @@ def apply_CRswir(raster_dst: Dict, preprocess: Callable = lambda x: x):
 
     Returns:
         an array of CRswir values.
+    """
     rho_swir1 = preprocess(raster_dst["B11"].read(1))
     rho_swir2 = preprocess(raster_dst["B12"].read(1))
     rho_nir2 = preprocess(raster_dst["B8A"].read(1))
-    lamb_swir1 = WAVELENGHTS["B11"].read(1)
-    lamb_swir2 = WAVELENGHTS["B12"].read(1)
-    lamb_nir2 = WAVELENGHTS["B8A"].read(1)
+    lamb_swir1 = WAVELENGHTS["B11"]
+    lamb_swir2 = WAVELENGHTS["B12"]
+    lamb_nir2 = WAVELENGHTS["B8A"]
 
     rho_cont = rho_swir1 + (lamb_swir1 - lamb_nir2)*(rho_swir2 - rho_nir2)/(lamb_swir2 - lamb_nir2)
 
