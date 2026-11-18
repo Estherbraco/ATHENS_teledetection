@@ -40,8 +40,8 @@ if __name__ == "__main__":
 
     dates = np.array(list(train_ts.keys()))
     n_dates = len(dates)
-    days = dates_to_days(np.array([datetime.strptime(date, '%Y-%m-%d') for date in train_ts]))
-  
+    dates_for_days = np.array(list(train_ts), dtype="datetime64[ns]")
+    days = dates_to_days(dates_for_days)
     # Make a raster of size (n_days, height, width) of NDVI
     ndvi_array = np.array([train_ts[date]['NDVI'] for date in train_ts])
     height, width = ndvi_array.shape[1], ndvi_array.shape[2]
