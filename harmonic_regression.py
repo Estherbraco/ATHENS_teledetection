@@ -1,10 +1,10 @@
 import numpy as np
 from typing import Dict
 from pandas import to_datetime
-
+from scipy import stats
 
 REF_DAY = to_datetime("2015-01-01").to_datetime64()
-
+T=365.25
 
 def fit_harmonic_model(
     ts_days: np.ndarray, 
@@ -25,7 +25,20 @@ def fit_harmonic_model(
             - a key 'XTX' mapping to the Gram matrix of the matrix of input variables
             - a key 'df' mapping to the degrees of freedom of the estimated model
     """
-    raise NotImplementedError
+    y=ts_values[~ts_masks]
+    t=ts_days[~ts_masks]
+    X=compute_harmonic_terms(ts_days, T)
+    coeff, *_ = np.linalg.lstsq(X, y, rcond=None)
+    residuals = y - X @ coeff
+    df =X.shape[0] - X.shape[1]
+    std_hat = np.sqrt(np.sum(residuals**2)/df)
+    XTX = X.T @ X
+    return {
+        "coeff": coeff,
+        "std_hat": std_hat,
+        "XTX": XTX,
+        "df": df
+    }
 
 
 def pred_harmonic_model(
@@ -47,6 +60,15 @@ def pred_harmonic_model(
             - a key 'ts_hat' mapping to the predictions
             - a key 'prediction_interval' mapping to the prediction interval of new observations
     """
+    alpha = 1 - confidence_level  
+    X = compute_harmonic_terms(ts_days, T)
+    ts_hat = X @ harmonic_model["coeff"] 
+    XTX_inv = np.linalg.inv(harmonic_model["XTX"])
+    q = stats.t.ppf(1 - alpha/2, df=harmonic_model["df"])     
+    h = np.sum((X @ XTX_inv) * X, axis=1)        
+    hw = q * harmonic_model["std_hat"] * np.sqrt(1 + h) 
+    prediction_interval = np.column_stack([ts_hat - hw, ts_hat + hw])
+    return {"ts_hat": ts_hat, "prediction_interval": prediction_interval}
     raise NotImplementedError
 
 
@@ -87,4 +109,6 @@ def compute_harmonic_terms(DateAsNumber: int, T: float = 365.25):
     Returns:
         Array of shape (5,) containing harmonic terms.
     """
+    return np.array([1, np.cos(2 * np.pi * DateAsNumber / T), np.sin(2 * np.pi * DateAsNumber / T),
+                     np.cos(4 * np.pi * DateAsNumber / T), np.sin(4 * np.pi * DateAsNumber / T)])
     raise NotImplementedError
