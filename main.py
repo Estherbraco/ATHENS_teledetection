@@ -59,6 +59,7 @@ if __name__ == "__main__":
     ax.set_xticks(days[xticks], labels=xticklabels, rotation=45)
     ax.xaxis.grid(True, which="major", linestyle="dashed")
     plt.show()
+    plt.savefig("ndvi_timeseries.png", bbox_inches="tight")
 
     # # Plot the time series
     # n_rows, n_cols = 2, 4
