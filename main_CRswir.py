@@ -144,6 +144,9 @@ if __name__ == "__main__":
     ax.fill_between(days_test, pred_test["bas"][:, i, j], pred_test["haut"][:, i, j],
                     color="green", alpha=0.2, label="IP 95 %")
     ax.set_ylabel("CRswir")
+    xticks_test = np.arange(len(test_dates))[::6]
+    ax.set_xticks(days_test[xticks_test], labels=np.array(test_dates)[xticks_test], rotation=45)
+    ax.xaxis.grid(True, which="major", linestyle="dashed")
     ax.legend()
     plt.savefig("Test_2018_CRswir.png", bbox_inches="tight")
 
@@ -153,24 +156,23 @@ if __name__ == "__main__":
     N_CONSEC = 3
     n_test, H, W = anomalie.shape
 
-    deperissement = np.zeros((H, W), dtype=bool)      # True = pixel dépérissant
-    date_detection = np.full((H, W), -1, dtype=int)   # indice de la 1re date de la série (-1 = aucune)
-
+    deperissement = np.zeros((H, W), dtype=bool)      
+    date_detection = np.full((H, W), -1, dtype=int)   
     for i in range(H):
         for j in range(W):
-            valides = np.where(~mask_test[:, i, j])[0]     # indices des dates valides
+            valides = np.where(~mask_test[:, i, j])[0]    
             compteur = 0
             for k in valides:
                 if anomalie[k, i, j]:
                     compteur += 1
                     if compteur == 1:
-                        debut = k                          # début de la série
+                        debut = k                         
                     if compteur == N_CONSEC:
                         deperissement[i, j] = True
                         date_detection[i, j] = debut
                         break
                 else:
-                    compteur = 0                           # une date normale casse la série
+                    compteur = 0                          
 
     print(f"Pixels dépérissants : {deperissement.sum()} "
           f"({100 * deperissement.mean():.1f} % de la zone)")
@@ -195,3 +197,6 @@ if __name__ == "__main__":
 
     plt.savefig("Deperissement_2018.png", bbox_inches="tight")
     plt.show()
+
+    np.savez("detection_2018.npz", deperissement=deperissement,
+             date_detection=date_detection, test_dates=np.array(test_dates))

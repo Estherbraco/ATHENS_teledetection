@@ -6,4 +6,3 @@
 6. Improve the method to distinguish between clearcut harvesting and bark beetle infestations.
 7. Improve the method to distinguish between droughts and bark beetle infestations.
 
-#
