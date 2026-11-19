@@ -1,4 +1,4 @@
-data_folder: workspaces/ATHENS_teledetection
+data_folder: data
 collection: SENTINEL2_L2A
 spatial_extent:
   west: 6.547121

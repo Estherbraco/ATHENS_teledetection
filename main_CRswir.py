@@ -17,10 +17,9 @@ if __name__ == "__main__":
 
     bands = query['bands'][:-1]
     
-    print(bands)
     data_folder = os.path.join(query['data_folder'], query_id(query, temporal_id=False))
     years = sorted(os.listdir(data_folder))
-
+    print(years)
     train_data_folder = os.path.join(data_folder, years[0])
 
     # Load Sentinel-2 data
@@ -40,7 +39,6 @@ if __name__ == "__main__":
             rasterio.open(os.path.join(train_data_folder, band, f'SENTINEL2_L2A_{band}_{date}Z.tif'))) 
             for band in bands)
         train_ts[date]['CRswir'] = apply_CRswir(train_ts[date], preprocess=digital_numbers_to_reflectance)
-    print(train_ts)
 
     dates = np.array(list(train_ts.keys()))
     n_dates = len(dates)
@@ -102,7 +100,8 @@ if __name__ == "__main__":
     # ==================================================================
     # TEST : mêmes calculs sur 2018, avec le modèle ajusté sur 2016
     # ==================================================================
-    test_data_folder = os.path.join(data_folder, [y for y in years if y.startswith("2018")][0])
+    test_data_folder = os.path.join(data_folder, years[1])
+    
 
     # Dates 2018 (même méthode que pour le train)
     with open(os.path.join(test_data_folder, bands[0], 'job-results.json'), 'r') as f:
