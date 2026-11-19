@@ -146,5 +146,52 @@ if __name__ == "__main__":
     ax.set_ylabel("CRswir")
     ax.legend()
     plt.savefig("Test_2018_CRswir.png", bbox_inches="tight")
-    plt.show()
 
+    # ==================================================================
+    # Confirmation : 3 anomalies consécutives sur les dates valides
+    # ==================================================================
+    N_CONSEC = 3
+    n_test, H, W = anomalie.shape
+
+    deperissement = np.zeros((H, W), dtype=bool)      # True = pixel dépérissant
+    date_detection = np.full((H, W), -1, dtype=int)   # indice de la 1re date de la série (-1 = aucune)
+
+    for i in range(H):
+        for j in range(W):
+            valides = np.where(~mask_test[:, i, j])[0]     # indices des dates valides
+            compteur = 0
+            for k in valides:
+                if anomalie[k, i, j]:
+                    compteur += 1
+                    if compteur == 1:
+                        debut = k                          # début de la série
+                    if compteur == N_CONSEC:
+                        deperissement[i, j] = True
+                        date_detection[i, j] = debut
+                        break
+                else:
+                    compteur = 0                           # une date normale casse la série
+
+    print(f"Pixels dépérissants : {deperissement.sum()} "
+          f"({100 * deperissement.mean():.1f} % de la zone)")
+
+    # ==================================================================
+    # Cartes
+    # ==================================================================
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+    axs[0].imshow(deperissement, cmap="Reds")
+    axs[0].set_title("Pixels dépérissants (2018)")
+    axs[0].axis("off")
+
+    carte_dates = np.where(deperissement, days_test[date_detection], np.nan)
+    im = axs[1].imshow(carte_dates, cmap="viridis")
+    axs[1].set_title("Date de détection")
+    axs[1].axis("off")
+    cbar = fig.colorbar(im, ax=axs[1], shrink=0.7)
+    ticks = days_test[::max(1, len(days_test) // 6)]
+    cbar.set_ticks(ticks)
+    cbar.set_ticklabels(np.array(test_dates)[::max(1, len(days_test) // 6)])
+
+    plt.savefig("Deperissement_2018.png", bbox_inches="tight")
+    plt.show()
