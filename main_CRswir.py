@@ -210,64 +210,77 @@ if __name__ == "__main__":
              date_detection=date_detection, test_dates=np.array(test_dates), foret=foret)
 
     # ==================================================================
-    # ÉTAPE 7 : sécheresse vs scolytes
+    # ÉTAPE 7 : sécheresse vs scolytes — critère de NON-RETOUR à un CRswir normal
     # ==================================================================
-    # Score d'anomalie normalisé : de combien d'écarts-types l'obs. dépasse la prédiction
-    z = (CRswir_test - pred_test["ts_hat"]) / model["std_hat"]      # (n, H, W)
-    z = np.where(mask_test, np.nan, z)
+    # Après la série d'anomalies qui a déclenché la détection, on regarde si le pixel
+    # redevient normal (CRswir sous la borne haute de l'IP) pendant K_RETOUR dates
+    # valides d'affilée :
+    #   - oui                                  -> l'arbre récupère : sécheresse
+    #   - non, avec au moins M_RECUL dates     -> pas de récupération : scolytes
+    #   - non, moins de M_RECUL dates observées -> pas assez de recul : indéterminé
+    K_RETOUR = 3      # dates normales d'affilée pour parler de "retour" (comme FORDEAD)
+    M_RECUL = 6       # dates valides minimum après la détection pour conclure "pas de retour"
+    normal = (CRswir_test <= pred_test["haut"]) & ~mask_test
 
-    # --- Critère 1 : anomalie synchrone sur toute la zone (signature sécheresse)
-    z_zone = np.nanmedian(z, axis=(1, 2))                           # (n,) une valeur par date
-    frac_zone = anomalie.sum(axis=(1, 2)) / (~mask_test).sum(axis=(1, 2))
-
-    # --- Critère 2 : persistance (scolytes = pas de retour à la normale)
-    N_FIN = 3        # nb de dernières dates valides regardées
-    classe7 = np.zeros((H, W), dtype=int)     # 0 sain, 1 scolytes, 2 sécheresse
+    classe_retour = np.zeros((H, W), dtype=int)   # 0 sain, 1 scolytes, 2 sécheresse, 3 indéterminé
+    date_retour = np.full((H, W), -1, dtype=int)  # indice de la 1re date du retour (-1 = aucun)
     for i in range(H):
         for j in range(W):
             if not deperissement[i, j]:
                 continue
             valides = np.where(~mask_test[:, i, j])[0]
-            apres = valides[valides > date_detection[i, j]]
-            fin = apres[-N_FIN:]
-            if len(fin) < N_FIN:
-                classe7[i, j] = 1                       # pas assez de recul : on garde scolytes
-            elif anomalie[fin, i, j].any():
-                classe7[i, j] = 1                       # toujours anormal en fin d'année -> scolytes
-            else:
-                classe7[i, j] = 2                       # revenu dans l'intervalle -> sécheresse
-
-    # --- Critère 3 : détection après correction de l'anomalie régionale
-    z_local = z - z_zone[:, None, None]                 # on retire l'effet "toute la zone"
-    q = 2.0                                             # ~ borne de l'IP 95 %
-    anomalie_locale = (z_local > q) & ~mask_test & foret
-    deperissement_local = np.zeros((H, W), dtype=bool)
-    for i in range(H):
-        for j in range(W):
+            # on saute les N_CONSEC dates valides de la série de détection
+            pos = np.searchsorted(valides, date_detection[i, j])
+            apres = valides[pos + N_CONSEC:]
             compteur = 0
-            for k in np.where(~mask_test[:, i, j])[0]:
-                compteur = compteur + 1 if anomalie_locale[k, i, j] else 0
-                if compteur == N_CONSEC:
-                    deperissement_local[i, j] = True
-                    break
+            for k in apres:
+                if normal[k, i, j]:
+                    compteur += 1
+                    if compteur == 1:
+                        debut_retour = k
+                    if compteur == K_RETOUR:
+                        date_retour[i, j] = debut_retour
+                        break
+                else:
+                    compteur = 0
+            if date_retour[i, j] >= 0:
+                classe_retour[i, j] = 2                 # retour à la normale -> sécheresse
+            elif len(apres) >= M_RECUL:
+                classe_retour[i, j] = 1                 # jamais revenu malgré le recul -> scolytes
+            else:
+                classe_retour[i, j] = 3                 # pas assez de recul -> indéterminé
 
     n = deperissement.sum()
     print(f"[Étape 7] dépérissants : {n}")
-    print(f"  critère 2 persistance -> scolytes {(classe7 == 1).sum()} | sécheresse {(classe7 == 2).sum()}")
-    print(f"  critère 3 correction régionale -> restent {(deperissement & deperissement_local).sum()} "
-          f"(les {(deperissement & ~deperissement_local).sum()} autres = effet zone / sécheresse)")
+    for c, nom in [(1, "scolytes (pas de retour)"), (2, "sécheresse (retour à la normale)"),
+                   (3, "indéterminé (pas assez de recul)")]:
+        print(f"  {nom:35s}: {(classe_retour == c).sum():5d} ({100 * (classe_retour == c).sum() / n:.0f} %)")
 
-    fig, axs = plt.subplots(1, 3, figsize=(18, 5), gridspec_kw={"width_ratios": [1.6, 1, 1]})
-    axs[0].plot(days_test, z_zone, "o-", color="tab:red", label="z médian de la zone")
-    axs[0].plot(days_test, 10 * frac_zone, "s--", color="tab:blue", label="10 × part de pixels en anomalie")
-    axs[0].axhline(0, color="grey", lw=0.8)
+    np.savez("secheresse_2018.npz", classe_retour=classe_retour, date_retour=date_retour,
+             test_dates=np.array(test_dates))
+
+    # Carte + un exemple de série par classe
+    fig, axs = plt.subplots(1, 2, figsize=(16, 5), gridspec_kw={"width_ratios": [1, 1.8]})
+    cmap7 = ListedColormap(["white", "darkorange", "royalblue", "lightgrey"])
+    axs[0].imshow(classe_retour, cmap=cmap7, vmin=0, vmax=3, interpolation="nearest")
+    axs[0].set_title("Non-retour à un CRswir normal\nscolytes (orange) / sécheresse (bleu) / indéterminé (gris)")
+    axs[0].axis("off")
+    for c, couleur, nom in [(1, "darkorange", "scolytes"), (2, "royalblue", "sécheresse")]:
+        idx = np.argwhere(classe_retour == c)
+        if len(idx) == 0:
+            continue
+        i, j = idx[len(idx) // 2]
+        ok = ~mask_test[:, i, j]
+        axs[1].plot(days_test[ok], CRswir_test[ok, i, j] - pred_test["haut"][ok, i, j], "o-",
+                    color=couleur, label=f"{nom} ({i},{j})")
+        axs[1].axvline(days_test[date_detection[i, j]], color=couleur, linestyle="--")
+        if date_retour[i, j] >= 0:
+            axs[1].axvline(days_test[date_retour[i, j]], color=couleur, linestyle=":")
+    axs[1].axhline(0, color="grey", lw=0.8)
+    axs[1].set_ylabel("CRswir − borne haute de l'IP")
     xt = np.arange(len(test_dates))[::6]
-    axs[0].set_xticks(days_test[xt], labels=np.array(test_dates)[xt], rotation=45)
-    axs[0].legend(); axs[0].set_title("Anomalie à l'échelle de la zone (2018)")
-    cmap7 = ListedColormap(["white", "darkorange", "royalblue"])
-    axs[1].imshow(classe7, cmap=cmap7, vmin=0, vmax=2, interpolation="nearest")
-    axs[1].set_title("Persistance\nscolytes (orange) / sécheresse (bleu)"); axs[1].axis("off")
-    axs[2].imshow(deperissement_local, cmap="Reds", interpolation="nearest")
-    axs[2].set_title("Détection après correction régionale"); axs[2].axis("off")
+    axs[1].set_xticks(days_test[xt], labels=np.array(test_dates)[xt], rotation=45)
+    axs[1].legend()
+    axs[1].set_title("> 0 = anomalie ; tirets = détection ; pointillés = retour à la normale")
     plt.savefig("Secheresse_vs_scolytes_2018.png", bbox_inches="tight")
     plt.show()
