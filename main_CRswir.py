@@ -15,7 +15,9 @@ if __name__ == "__main__":
     with open('cdse_query.yaml', 'r') as file:
         query = yaml.safe_load(file)
 
-    bands = query['bands']
+    bands = query['bands'][:-1]
+    
+    print(bands)
     data_folder = os.path.join(query['data_folder'], query_id(query, temporal_id=False))
     years = sorted(os.listdir(data_folder))
 
