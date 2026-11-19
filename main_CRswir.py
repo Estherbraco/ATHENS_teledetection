@@ -83,12 +83,12 @@ if __name__ == "__main__":
     ])
     cloud_mask_array |= ~np.isfinite(CRswir_array)
 
-    # Régression harmonique sur tous les pixels
+    # Régression harmonique sur tous les pixels 2016-1018
     model = fit_harmonic_model(days, CRswir_array, cloud_mask_array)
     pred = pred_harmonic_model(days, model)
     np.savez("model_2016_CRswir.npz", **model)
 
-    # Courbe sur le pixel  Rswir_px
+    # Courbe sur le pixel  Rswir_px 2016-1018
     i, j = px_coords
     ax.plot(days, pred["ts_hat"][:, i, j], color="green", label="Régression harmonique")
     ax.fill_between(days, pred["bas"][:, i, j], pred["haut"][:, i, j],
@@ -96,3 +96,54 @@ if __name__ == "__main__":
     ax.legend()
     plt.savefig("Regression_CRswir.png", bbox_inches="tight")
     plt.show()
+
+    # ==================================================================
+    # TEST : mêmes calculs sur 2018, avec le modèle ajusté sur 2016
+    # ==================================================================
+    test_data_folder = os.path.join(data_folder, [y for y in years if y.startswith("2018")][0])
+
+    # Dates 2018 (même méthode que pour le train)
+    with open(os.path.join(test_data_folder, bands[0], 'job-results.json'), 'r') as f:
+        job_results_test = json.load(f)
+    test_dates = [file.split('_')[-1].split('Z')[0] for file in job_results_test['assets'].keys()]
+    test_dates = sorted(d for d in test_dates if d.startswith("2018"))
+
+    # Série temporelle 2018
+    test_ts = {}
+    for date in test_dates:
+        test_ts[date] = {
+            band: rasterio.open(os.path.join(test_data_folder, band, f'SENTINEL2_L2A_{band}_{date}Z.tif'))
+            for band in bands
+        }
+        test_ts[date]['CRswir'] = apply_CRswir(test_ts[date], preprocess=digital_numbers_to_reflectance)
+
+    # Jours, cube CRswir et masque 2018
+    days_test = dates_to_days(np.array(test_dates, dtype="datetime64[ns]"))
+    CRswir_test = np.array([test_ts[date]['CRswir'] for date in test_ts])
+    mask_test = np.stack([
+        apply_cloud_mask(test_ts[date], preprocess=digital_numbers_to_reflectance)
+        for date in test_ts
+    ])
+    mask_test |= ~np.isfinite(CRswir_test)
+
+    # Prédiction 2018 avec le modèle 2016 (pas de nouvel ajustement !)
+    pred_test = pred_harmonic_model(days_test, model)
+
+    # Anomalies : observation valide au-dessus de l'intervalle de prédiction
+    anomalie = (CRswir_test > pred_test["haut"]) & ~mask_test
+
+    # Figure : même pixel qu'en 2016
+    i, j = px_coords
+    valid = ~mask_test[:, i, j]
+    fig, ax = plt.subplots()
+    ax.scatter(days_test[valid], CRswir_test[valid, i, j], color="#8fc0a9", label="obs. 2018")
+    ax.scatter(days_test[anomalie[:, i, j]], CRswir_test[anomalie[:, i, j], i, j],
+               color="red", label="anomalie")
+    ax.plot(days_test, pred_test["ts_hat"][:, i, j], color="green", label="modèle 2016")
+    ax.fill_between(days_test, pred_test["bas"][:, i, j], pred_test["haut"][:, i, j],
+                    color="green", alpha=0.2, label="IP 95 %")
+    ax.set_ylabel("CRswir")
+    ax.legend()
+    plt.savefig("Test_2018_CRswir.png", bbox_inches="tight")
+    plt.show()
+
