@@ -74,3 +74,22 @@ if __name__ == "__main__":
        #     ax.set_yticks([])
         #    ax.set_title(date)
        # plt.show()
+
+cloud_mask_array = np.stack([
+    apply_cloud_mask(rasters, preprocess=digital_numbers_to_reflectance)
+    for rasters in train_ts.values()
+])
+mask_px = cloud_mask_array[:, px_coords[0], px_coords[1]] | ~np.isfinite(CRswir_px)
+if np.count_nonzero(~mask_px) > 5:
+    model = fit_harmonic_model(days, CRswir_px, mask_px)
+    result = pred_harmonic_model(days, model)
+
+    ax.plot(days, result["ts_hat"], color="green", label="Régression harmonique")
+    ax.legend()
+else:
+    print("Pas assez d'observations valides pour ce pixel.")
+    
+
+ax.plot(days, result["ts_hat"], color="green", label="Régression harmonique")
+plt.savefig("Regression_CRswir.png", bbox_inches="tight")
+ax.legend()
