@@ -49,7 +49,7 @@ def apply_CRswir(raster_dst: Dict, preprocess: Callable = lambda x: x):
     lamb_swir2 = WAVELENGHTS["B12"]
     lamb_nir2 = WAVELENGHTS["B8A"]
 
-    rho_cont = rho_swir1 + (lamb_swir1 - lamb_nir2)*(rho_swir2 - rho_nir2)/(lamb_swir2 - lamb_nir2)
+    rho_cont = rho_nir2 + (lamb_swir1 - lamb_nir2)*(rho_swir2 - rho_nir2)/(lamb_swir2 - lamb_nir2)
 
     return rho_swir1/rho_cont
 
