@@ -70,11 +70,11 @@ if __name__ == "__main__":
     #for i in range(n_dates // (n_rows * n_cols)):    
     #fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize)
     #    for i, (ax, date) in enumerate(zip(axs.flat, dates[i*n_rows*n_cols:(i+1)*n_rows*n_cols])):
-     #       ax.imshow(train_ts[date]['RGB'])
-      #      ax.set_xticks([])
-       #     ax.set_yticks([])
-        #    ax.set_title(date)
-       # plt.show()
+    #        ax.imshow(train_ts[date]['RGB'])
+    #        ax.set_xticks([])
+    #        ax.set_yticks([])
+    #        ax.set_title(date)
+    #    plt.show()
 
 # Masque (n_dates, H, W)
     cloud_mask_array = np.stack([
