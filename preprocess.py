@@ -19,8 +19,8 @@ def digital_numbers_to_reflectance(raster: np.ndarray):
 def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
-    seuil: float = 0.6,
-    seuil_vegetation: float = 0.2,
+    seuil: float = 0.1,
+    seuil_vegetation: float = 0.02,
     eps: float = 1e-4,
     ):
     """Create a mask for clouds, cloud shadows and non-vegetation pixels.
@@ -36,7 +36,7 @@ def apply_cloud_mask(
         A boolean array where True indicates a cloud, cloud shadow,
         non-vegetation or invalid/SCL pixel.
     """
-    bands = ("B02", "B03", "B04", "B11",)
+    bands = ("B02","B04","B08", "B11")
     values = []
 
     for band in bands:
@@ -48,36 +48,9 @@ def apply_cloud_mask(
     if any(value.shape != shape for value in values):
         raise ValueError("All raster bands must have the same shape")
 
-    b02, b03, b04, b11 = values
-
-    cloud_mask = np.logical_and.reduce([
-        b02 > seuil,
-        b03 > seuil,
-        b04 > seuil,
-        b11 > seuil,
-    ])
-
-    mask = cloud_mask 
-
-    if "B08" in rasters:
-        b08 = np.asarray(preprocess(rasters["B08"].read(1)))
-        if b08.shape != shape:
-            raise ValueError("All raster bands must have the same shape")
-
-        ndvi = (b08 - b04) / (b08 + b04 + eps)
-        non_vegetation_mask = ndvi <= seuil_vegetation
-        mask |= non_vegetation_mask
-
-    if "SCL" in rasters:
-        scl = np.asarray(rasters["SCL"].read(1))
-        if scl.shape != shape:
-            raise ValueError("All raster bands must have the same shape")
-
-        # 3: cloud shadow, 8/9: medium/high-probability clouds,
-        # 10: cirrus, 0: no data.
-        scl_mask = np.isin(scl, (0, 3, 8, 9, 10))
-        mask |= scl_mask
-
+    b02, b04, b08, b11 = values
+    mask =(((b08 - b04) / (b08 + b04)) > 0.2) & (b02 < 0.12) & (b08 > 0.15) & (b11 > 0.08)
+    mask = ~mask
     return mask
 
 def apply_rgb_compo(
