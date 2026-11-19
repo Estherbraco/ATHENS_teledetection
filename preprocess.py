@@ -19,7 +19,7 @@ def digital_numbers_to_reflectance(raster: np.ndarray):
 def apply_cloud_mask(
     rasters: Dict[str, rasterio.io.DatasetReader], 
     preprocess: Callable = lambda x: x, 
-    seuil: float = 0.7,
+    seuil: float = 0.6,
     seuil_vegetation: float = 0.2,
     eps: float = 1e-4,
     ):
