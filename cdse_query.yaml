@@ -1,4 +1,4 @@
-data_folder: C:\Users\Etudiant\Documents\data
+data_folder: ./data
 collection: SENTINEL2_L2A
 spatial_extent:
   west: 6.547121
