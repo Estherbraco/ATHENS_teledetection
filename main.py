@@ -44,8 +44,8 @@ if __name__ == "__main__":
             f"Skipping {len(skipped_dates)} acquisition dates without all "
             "configured bands."
         )
-    img_dates [date for date in img_dates if '2016' in date]
-    
+    #img_dates [date for date in img_dates if '2016' in date]
+
     # Make Sentinel-2 time series
     train_ts = {}
     for date in img_dates:
