@@ -36,7 +36,7 @@ def apply_cloud_mask(
         A boolean array where True indicates a cloud, cloud shadow,
         non-vegetation or invalid/SCL pixel.
     """
-    bands = ("B02","B04","B08", "B11")
+    bands = ("B02","B03","B04","B08", "B11")
     values = []
 
     for band in bands:
@@ -48,10 +48,12 @@ def apply_cloud_mask(
     if any(value.shape != shape for value in values):
         raise ValueError("All raster bands must have the same shape")
 
-    b02, b04, b08, b11 = values
-    mask =(((b08 - b04) / (b08 + b04)) > 0.2) & (b02 < 0.12) & (b08 > 0.15) & (b11 > 0.08)
+    b02, b03, b04, b08, b11 = values
+    mask =(((b08 - b04) / (b08 + b04)) > 0.2) & (b02 < 0.12) & (b08 >= 0.15) & (b03 <0.065)& (b11 > 0.08)
     mask = ~mask
     return mask
+# (b08 <= 0.4)
+
 
 def apply_rgb_compo(
     rasters: Dict[str, rasterio.io.DatasetReader], 
