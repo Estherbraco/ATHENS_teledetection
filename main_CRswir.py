@@ -284,3 +284,53 @@ if __name__ == "__main__":
     axs[1].set_title("> 0 = anomalie ; tirets = détection ; pointillés = retour à la normale")
     plt.savefig("Secheresse_vs_scolytes_2018.png", bbox_inches="tight")
     plt.show()
+
+    # ==================================================================
+    # CARTES MENSUELLES : état de chaque pixel à la fin de chaque mois de 2018
+    # ==================================================================
+    # 0 hors forêt | 1 normal | 2 stress en cours (dépérissement confirmé, pas encore revenu)
+    # 3 revenu à la normale (K_RETOUR dates normales d'affilée après la détection)
+    # Pour chaque pixel détecté : indice de la date où le dépérissement est CONFIRMÉ
+    # (3e anomalie de la série) et de la date où le retour est COMPLET (K_RETOUR-ième date normale).
+    idx_confirm = np.full((H, W), -1, dtype=int)
+    idx_retour = np.full((H, W), -1, dtype=int)
+    for i in range(H):
+        for j in range(W):
+            if not deperissement[i, j]:
+                continue
+            valides = np.where(~mask_test[:, i, j])[0]
+            pos = np.searchsorted(valides, date_detection[i, j])
+            idx_confirm[i, j] = valides[pos + N_CONSEC - 1]
+            compteur = 0
+            for k in valides[pos + N_CONSEC:]:
+                compteur = compteur + 1 if normal[k, i, j] else 0
+                if compteur == K_RETOUR:
+                    idx_retour[i, j] = k
+                    break
+
+    mois = ["04", "05", "06", "07", "08", "09", "10", "11", "12"]
+    noms_mois = {"04": "avril", "05": "mai", "06": "juin", "07": "juillet", "08": "août",
+                 "09": "septembre", "10": "octobre", "11": "novembre", "12": "décembre"}
+    cmap_mois = ListedColormap(["white", "#d9ead3", "#cc4125", "royalblue"])
+
+    fig, axs = plt.subplots(3, 3, figsize=(13, 15))
+    print("[Cartes mensuelles] stress en cours / revenus à la normale (pixels)")
+    for ax, m in zip(axs.flat, mois):
+        # dernière date d'acquisition du mois (ou avant)
+        k_fin = max(k for k, d in enumerate(test_dates) if d[5:7] <= m)
+        etat = np.where(foret, 1, 0)
+        confirme = (idx_confirm >= 0) & (idx_confirm <= k_fin)
+        revenu = confirme & (idx_retour >= 0) & (idx_retour <= k_fin)
+        etat[confirme] = 2
+        etat[revenu] = 3
+        n_stress, n_retour = int((etat == 2).sum()), int((etat == 3).sum())
+        print(f"  fin {noms_mois[m]:9s} ({test_dates[k_fin]}) : {n_stress:5d} / {n_retour:5d}")
+        ax.imshow(etat, cmap=cmap_mois, vmin=0, vmax=3, interpolation="nearest")
+        ax.set_title(f"Fin {noms_mois[m]} 2018\nstress {n_stress} | revenus {n_retour}")
+        ax.axis("off")
+    fig.suptitle("État des pixels de forêt à la fin de chaque mois de 2018\n"
+                 "vert pâle = normal ; rouge = stress en cours (pas de retour) ; bleu = revenu à la normale",
+                 fontsize=13)
+    plt.tight_layout()
+    plt.savefig("Cartes_mensuelles_2018.png", bbox_inches="tight")
+    plt.show()
