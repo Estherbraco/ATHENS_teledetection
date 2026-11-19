@@ -30,6 +30,8 @@ if __name__ == "__main__":
     img_files = list(job_results['assets'].keys())
     img_dates = [file.split('_')[-1].split('Z')[0] for file in img_files]
 
+    # img_dates [date for date in img_dates if '2016' in date]
+
     # Make Sentinel-2 time series
     train_ts = {}
     for date in img_dates:
