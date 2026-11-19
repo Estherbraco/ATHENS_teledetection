@@ -76,21 +76,23 @@ if __name__ == "__main__":
         #    ax.set_title(date)
        # plt.show()
 
-cloud_mask_array = np.stack([
-    apply_cloud_mask(rasters, preprocess=digital_numbers_to_reflectance)
-    for rasters in train_ts.values()
-])
-mask_px = cloud_mask_array[:, px_coords[0], px_coords[1]] | ~np.isfinite(CRswir_px)
-if np.count_nonzero(~mask_px) > 5:
-    model = fit_harmonic_model(days, CRswir_px, mask_px)
-    result = pred_harmonic_model(days, model)
+# Masque (n_dates, H, W) 
+    mask_array = np.stack([
+        apply_cloud_mask(train_ts[date], preprocess=digital_numbers_to_reflectance)
+        for date in train_ts
+    ])
+    mask_array |= ~np.isfinite(CRswir_px)
 
-    ax.plot(days, result["ts_hat"], color="green", label="Régression harmonique")
+    # Régression harmonique sur tous les pixels
+    model = fit_harmonic_model(days, CRswir_px, mask_array)
+    pred = pred_harmonic_model(days, model)
+    np.savez("model_2016_CRswir.npz", **model)
+
+    # Courbe sur le pixel affiché
+    i, j = px_coords
+    ax.plot(days, pred["ts_hat"][:, i, j], color="green", label="Régression harmonique")
+    ax.fill_between(days, pred["bas"][:, i, j], pred["haut"][:, i, j],
+                    color="green", alpha=0.2, label="IP 95 %")
     ax.legend()
-else:
-    print("Pas assez d'observations valides pour ce pixel.")
-    
-
-ax.plot(days, result["ts_hat"], color="green", label="Régression harmonique")
-plt.savefig("Regression_CRswir.png", bbox_inches="tight")
-ax.legend()
+    plt.savefig("CRswir_timeseries.png", bbox_inches="tight")
+    plt.show()
