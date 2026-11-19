@@ -4,6 +4,7 @@ import json
 
 import rasterio
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 from download_from_cdse import query_id
 from spectral_index import apply_CRswir
@@ -200,3 +201,66 @@ if __name__ == "__main__":
 
     np.savez("detection_2018.npz", deperissement=deperissement,
              date_detection=date_detection, test_dates=np.array(test_dates))
+
+    # ==================================================================
+    # ÉTAPE 7 : sécheresse vs scolytes
+    # ==================================================================
+    # Score d'anomalie normalisé : de combien d'écarts-types l'obs. dépasse la prédiction
+    z = (CRswir_test - pred_test["ts_hat"]) / model["std_hat"]      # (n, H, W)
+    z = np.where(mask_test, np.nan, z)
+
+    # --- Critère 1 : anomalie synchrone sur toute la zone (signature sécheresse)
+    z_zone = np.nanmedian(z, axis=(1, 2))                           # (n,) une valeur par date
+    frac_zone = anomalie.sum(axis=(1, 2)) / (~mask_test).sum(axis=(1, 2))
+
+    # --- Critère 2 : persistance (scolytes = pas de retour à la normale)
+    N_FIN = 3        # nb de dernières dates valides regardées
+    classe7 = np.zeros((H, W), dtype=int)     # 0 sain, 1 scolytes, 2 sécheresse
+    for i in range(H):
+        for j in range(W):
+            if not deperissement[i, j]:
+                continue
+            valides = np.where(~mask_test[:, i, j])[0]
+            apres = valides[valides > date_detection[i, j]]
+            fin = apres[-N_FIN:]
+            if len(fin) < N_FIN:
+                classe7[i, j] = 1                       # pas assez de recul : on garde scolytes
+            elif anomalie[fin, i, j].any():
+                classe7[i, j] = 1                       # toujours anormal en fin d'année -> scolytes
+            else:
+                classe7[i, j] = 2                       # revenu dans l'intervalle -> sécheresse
+
+    # --- Critère 3 : détection après correction de l'anomalie régionale
+    z_local = z - z_zone[:, None, None]                 # on retire l'effet "toute la zone"
+    q = 2.0                                             # ~ borne de l'IP 95 %
+    anomalie_locale = (z_local > q) & ~mask_test
+    deperissement_local = np.zeros((H, W), dtype=bool)
+    for i in range(H):
+        for j in range(W):
+            compteur = 0
+            for k in np.where(~mask_test[:, i, j])[0]:
+                compteur = compteur + 1 if anomalie_locale[k, i, j] else 0
+                if compteur == N_CONSEC:
+                    deperissement_local[i, j] = True
+                    break
+
+    n = deperissement.sum()
+    print(f"[Étape 7] dépérissants : {n}")
+    print(f"  critère 2 persistance -> scolytes {(classe7 == 1).sum()} | sécheresse {(classe7 == 2).sum()}")
+    print(f"  critère 3 correction régionale -> restent {(deperissement & deperissement_local).sum()} "
+          f"(les {(deperissement & ~deperissement_local).sum()} autres = effet zone / sécheresse)")
+
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5), gridspec_kw={"width_ratios": [1.6, 1, 1]})
+    axs[0].plot(days_test, z_zone, "o-", color="tab:red", label="z médian de la zone")
+    axs[0].plot(days_test, 10 * frac_zone, "s--", color="tab:blue", label="10 × part de pixels en anomalie")
+    axs[0].axhline(0, color="grey", lw=0.8)
+    xt = np.arange(len(test_dates))[::6]
+    axs[0].set_xticks(days_test[xt], labels=np.array(test_dates)[xt], rotation=45)
+    axs[0].legend(); axs[0].set_title("Anomalie à l'échelle de la zone (2018)")
+    cmap7 = ListedColormap(["white", "darkorange", "royalblue"])
+    axs[1].imshow(classe7, cmap=cmap7, vmin=0, vmax=2, interpolation="nearest")
+    axs[1].set_title("Persistance\nscolytes (orange) / sécheresse (bleu)"); axs[1].axis("off")
+    axs[2].imshow(deperissement_local, cmap="Reds", interpolation="nearest")
+    axs[2].set_title("Détection après correction régionale"); axs[2].axis("off")
+    plt.savefig("Secheresse_vs_scolytes_2018.png", bbox_inches="tight")
+    plt.show()
