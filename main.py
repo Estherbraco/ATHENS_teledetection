@@ -21,12 +21,29 @@ if __name__ == "__main__":
 
     train_data_folder = os.path.join(data_folder, years[0])
 
-    # Load Sentinel-2 data
-    with open(os.path.join(train_data_folder, bands[0], 'job-results.json'), 'r') as f:
-        job_results = json.load(f)
+    band_files = {}
+    for band in bands:
+        band_files[band] = {
+            path.name.removeprefix(f'SENTINEL2_L2A_{band}_').removesuffix('Z.tif'): path
+            for path in Path(train_data_folder).rglob(f'SENTINEL2_L2A_{band}_*Z.tif')
+        }
+        if not band_files[band]:
+            raise FileNotFoundError(
+                f"No {band} GeoTIFFs found under {train_data_folder}"
+            )
 
-    img_files = list(job_results['assets'].keys())
-    img_dates = [file.split('_')[-1].split('Z')[0] for file in img_files]
+    band_dates = [set(files) for files in band_files.values()]
+    img_dates = sorted(set.intersection(*band_dates))
+    if not img_dates:
+        raise ValueError(
+            f"No acquisition dates have files for every configured band: {bands}"
+        )
+    skipped_dates = set.union(*band_dates) - set(img_dates)
+    if skipped_dates:
+        print(
+            f"Skipping {len(skipped_dates)} acquisition dates without all "
+            "configured bands."
+        )
 
     # Make Sentinel-2 time series
     train_ts = {}
