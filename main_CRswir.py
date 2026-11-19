@@ -60,7 +60,6 @@ if __name__ == "__main__":
     xticklabels = dates[xticks]
     ax.set_xticks(days[xticks], labels=xticklabels, rotation=45)
     ax.xaxis.grid(True, which="major", linestyle="dashed")
-    plt.show()
     plt.savefig("CRswir_timeseries.png", bbox_inches="tight")
 
     # Plot the time series
