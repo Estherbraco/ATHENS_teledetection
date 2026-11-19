@@ -16,7 +16,8 @@ if __name__ == "__main__":
     with open('cdse_query.yaml', 'r') as file:
         query = yaml.safe_load(file)
 
-    bands = query['bands'][:-1]
+    bands = query['bands']          # inclut SCL (utilisé par le masque nuages)
+    TRAIN_YEAR = "2016"
     
     data_folder = os.path.join(query['data_folder'], query_id(query, temporal_id=False))
     years = sorted(os.listdir(data_folder))
@@ -30,7 +31,9 @@ if __name__ == "__main__":
     img_files = list(job_results['assets'].keys())
     img_dates = [file.split('_')[-1].split('Z')[0] for file in img_files]
 
-    # img_dates [date for date in img_dates if '2016' in date]
+    # Entraînement sur 2016 uniquement (SCL disponible pour toutes les dates 2016)
+    img_dates = sorted(d for d in img_dates if d.startswith(TRAIN_YEAR))
+    print(f"{len(img_dates)} dates d'entraînement en {TRAIN_YEAR}")
 
     # Make Sentinel-2 time series
     train_ts = {}
@@ -77,19 +80,24 @@ if __name__ == "__main__":
     #        ax.set_title(date)
     #    plt.show()
 
-# Masque (n_dates, H, W)
+    # Masque nuages / ombres / non-végétation (n_dates, H, W)
     cloud_mask_array = np.stack([
         apply_cloud_mask(train_ts[date], preprocess=digital_numbers_to_reflectance)
         for date in train_ts
     ])
     cloud_mask_array |= ~np.isfinite(CRswir_array)
 
-    # Régression harmonique sur tous les pixels 2016-1018
+    # Masque forêt FIXE (H, W) : médiane d'été 2016 de B08 et B03
+    # (les prairies ont le même NDVI que la forêt mais sont plus claires en B08 / B03)
+    foret = compute_forest_mask(train_ts, cloud_mask_array, preprocess=digital_numbers_to_reflectance)
+    print(f"Forêt : {100 * foret.mean():.1f} % de la zone")
+
+    # Régression harmonique sur tous les pixels (2016)
     model = fit_harmonic_model(days, CRswir_array, cloud_mask_array)
     pred = pred_harmonic_model(days, model)
     np.savez("model_2016_CRswir.npz", **model)
 
-    # Courbe sur le pixel  Rswir_px 2016-1018
+    # Courbe sur le pixel CRswir_px (2016)
     i, j = px_coords
     ax.plot(days, pred["ts_hat"][:, i, j], color="green", label="Régression harmonique")
     ax.fill_between(days, pred["bas"][:, i, j], pred["haut"][:, i, j],
@@ -101,8 +109,7 @@ if __name__ == "__main__":
     # ==================================================================
     # TEST : mêmes calculs sur 2018, avec le modèle ajusté sur 2016
     # ==================================================================
-    test_data_folder = os.path.join(data_folder, years[1])
-    
+    test_data_folder = os.path.join(data_folder, [y for y in years if y.startswith("2018")][0])
 
     # Dates 2018 (même méthode que pour le train)
     with open(os.path.join(test_data_folder, bands[0], 'job-results.json'), 'r') as f:
@@ -131,8 +138,8 @@ if __name__ == "__main__":
     # Prédiction 2018 avec le modèle 2016 (pas de nouvel ajustement !)
     pred_test = pred_harmonic_model(days_test, model)
 
-    # Anomalies : observation valide au-dessus de l'intervalle de prédiction
-    anomalie = (CRswir_test > pred_test["haut"]) & ~mask_test
+    # Anomalies : observation valide, en forêt, au-dessus de l'intervalle de prédiction
+    anomalie = (CRswir_test > pred_test["haut"]) & ~mask_test & foret
 
     # Figure : même pixel qu'en 2016
     i, j = px_coords
@@ -200,7 +207,7 @@ if __name__ == "__main__":
     plt.show()
 
     np.savez("detection_2018.npz", deperissement=deperissement,
-             date_detection=date_detection, test_dates=np.array(test_dates))
+             date_detection=date_detection, test_dates=np.array(test_dates), foret=foret)
 
     # ==================================================================
     # ÉTAPE 7 : sécheresse vs scolytes
@@ -233,7 +240,7 @@ if __name__ == "__main__":
     # --- Critère 3 : détection après correction de l'anomalie régionale
     z_local = z - z_zone[:, None, None]                 # on retire l'effet "toute la zone"
     q = 2.0                                             # ~ borne de l'IP 95 %
-    anomalie_locale = (z_local > q) & ~mask_test
+    anomalie_locale = (z_local > q) & ~mask_test & foret
     deperissement_local = np.zeros((H, W), dtype=bool)
     for i in range(H):
         for j in range(W):
