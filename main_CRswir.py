@@ -265,11 +265,14 @@ if __name__ == "__main__":
     axs[0].imshow(classe_retour, cmap=cmap7, vmin=0, vmax=3, interpolation="nearest")
     axs[0].set_title("Non-retour à un CRswir normal\nscolytes (orange) / sécheresse (bleu) / indéterminé (gris)")
     axs[0].axis("off")
+    # Pixels choisis pour illustrer chaque classe (comportement net, >= 30 dates valides) :
+    #   scolytes   (219, 97) : détecté le 9 juillet, monte jusqu'à +0,55 et ne redescend jamais
+    #   sécheresse (29, 80)  : détecté le 3 août, pic à peine au-dessus de la borne puis retour net
+    exemples = {1: (219, 97), 2: (29, 80)}
     for c, couleur, nom in [(1, "darkorange", "scolytes"), (2, "royalblue", "sécheresse")]:
-        idx = np.argwhere(classe_retour == c)
-        if len(idx) == 0:
-            continue
-        i, j = idx[len(idx) // 2]
+        i, j = exemples[c]
+        if classe_retour[i, j] != c:
+            print(f"  attention : le pixel exemple {nom} ({i},{j}) n'est plus dans sa classe")
         ok = ~mask_test[:, i, j]
         axs[1].plot(days_test[ok], CRswir_test[ok, i, j] - pred_test["haut"][ok, i, j], "o-",
                     color=couleur, label=f"{nom} ({i},{j})")

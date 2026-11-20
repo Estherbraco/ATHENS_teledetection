@@ -90,7 +90,7 @@ forest_ax.imshow(
     interpolation="nearest",
 )
 forest_ax.axis("off")
-forest_ax.set_title("Masque forestier (True en rouge)")
+forest_ax.set_title("Masque forestier (forêt en rouge)")
 
 cloud_ax.imshow(
     cloud_mask,

@@ -121,9 +121,9 @@ def compute_forest_mask(
         warnings.simplefilter("ignore", RuntimeWarning)   # pixels never valid in summer
         med_b08 = np.nanmedian(b08, axis=0)
         med_b03 = np.nanmedian(b03, axis=0)
-    forest_mask = (med_b08 < seuil_b08) & (med_b03 < seuil_b03)
-    forest_mask = ~forest_mask  
+    # True = forest (NOT a "masked" pixel: to display what is excluded, use ~forest_mask)
     # NaN (never valid in summer) -> comparisons are False -> not forest
+    forest_mask = (med_b08 < seuil_b08) & (med_b03 < seuil_b03)
     return forest_mask
 
 
